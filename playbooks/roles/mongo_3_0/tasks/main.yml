@@ -12,9 +12,9 @@
   register: mongodb_already_installed
   when: MONGO_CLUSTERED
 
-- name: verify MongoDB not installed (clustered upgrades)
-  fail: msg="MongoDB is currently installed and cannot be safely upgraded in a clustered configuration.  FIXME"
-  when: mongodb_already_installed.stat.exists and MONGO_CLUSTERED
+#- name: verify MongoDB not installed (clustered upgrades)
+#  fail: msg="MongoDB is currently installed and cannot be safely upgraded in a clustered configuration.  FIXME"
+#  when: mongodb_already_installed.stat.exists and MONGO_CLUSTERED
 
 - name: remove mongo 2.4 if present
   apt: >
@@ -22,7 +22,38 @@
     state=absent purge=yes
     force=yes
   when: mongodb_needs_upgrade.stat.exists and not MONGO_CLUSTERED
-  
+
+- name: remove old init script for hugepages
+  file: >
+    path=/etc/init.d/disable-transparent-hugepages
+    state=absent
+  tags:
+    - "hugepages"
+    - "install"
+    - "install:system-requirements"
+
+- name: disable transparent huge pages on startup (http://docs.mongodb.org/manual/tutorial/transparent-huge-pages/)
+  copy: >
+    src=disable-transparent-hugepages.conf
+    dest=/etc/init/disable-transparent-hugepages.conf
+    owner=root
+    group=root
+    mode=0755
+  tags:
+    - "hugepages"
+    - "install"
+    - "install:system-requirements"
+
+- name: disable transparent huge pages
+  service: >
+    name=disable-transparent-hugepages
+    enabled=yes
+    state=started
+  tags:
+    - "hugepages"
+    - "install"
+    - "install:system-requirements"
+
 - name: install python pymongo for mongo_user ansible module
   pip: >
     name=pymongo state=present
@@ -45,6 +76,10 @@
     pkg={{','.join(mongodb_debian_pkgs)}}
     state=present install_recommends=yes
     force=yes update_cache=yes
+  tags:
+    - install
+    - install:system-requirements
+    - mongo_packages
 
 - name: create mongo dirs
   file: >
@@ -96,6 +131,10 @@
 
 - name: install logrotate configuration
   template: src=mongo_logrotate.j2 dest=/etc/logrotate.d/hourly/mongo
+  tags:
+    - "install"
+    - "install:configuration"
+    - "logrotate"
 
 - name: start mongo service
   service: name=mongod state=started
@@ -151,13 +190,26 @@
   file: path=/tmp/repset_add_secondaries.js state=absent
   when: MONGO_CLUSTERED and MONGO_PRIMARY == ansible_default_ipv4["address"] 
 
+- name: ensure all members are in replica set
+  mongo_rs_member:
+    rs_host: "{{ MONGO_PRIMARY }}"
+    rs_port: 27017
+    host: "{{ ansible_default_ipv4['address'] }}"
+    port: 27017
+    username: "{{ MONGO_ADMIN_USER }}"
+    password: "{{ MONGO_ADMIN_PASSWORD }}"
+    state: "{{ item.state }}"
+    hidden: "{{ item.hidden }}"
+  with_items: mongo_cluster_members
+  when: item.name == ansible_default_ipv4["address"]
+
 - name: create a mongodb user
   mongodb_user: >
     database={{ item.database }}
     login_user={{ MONGO_ADMIN_USER }}
     login_password={{ MONGO_ADMIN_PASSWORD }}
     name={{ item.user }}
-    password={{ item.password }}
+    password="{{ item.password }}"
     roles={{ item.roles }}
     state=present
   with_items: MONGO_USERS
@@ -169,7 +221,7 @@
     login_user={{ MONGO_ADMIN_USER }}
     login_password={{ MONGO_ADMIN_PASSWORD }}
     name={{ item.user }}
-    password={{ item.password }}
+    password="{{ item.password }}"
     roles={{ item.roles }}
     state=present
     replica_set={{ mongo_repl_set }}

@@ -139,10 +139,16 @@ error_page {{ k }} {{ v }};
     try_files $uri @proxy_to_lms_app;
   }
 
-  # No basic auth security on oath2 endpoint
+  # No basic auth security on oauth2 endpoint
   location /oauth2 {
     try_files $uri @proxy_to_lms_app;
   }
+
+  # No basic auth security on third party auth endpoints
+  location /auth {
+    try_files $uri @proxy_to_lms_app;
+  }
+
 
   # No basic auth security on the heartbeat url, so that ELB can use it
   location /heartbeat {
@@ -174,6 +180,11 @@ location ~ ^{{ EDXAPP_MEDIA_URL }}/(?P<file>.*) {
   {% include "robots.j2" %}
   {% include "static-files.j2" %}
 
+ {% if NGINX_SET_X_FORWARDED_HEADERS %}
+   if ($scheme != "https") {
+    rewrite ^ https://$host$uri permanent;
+   }
+ {% else %}
   # Forward to HTTPS if we're an HTTP request...
   if ($http_x_forwarded_proto = "http") {
     set $do_redirect "true";
@@ -183,4 +194,5 @@ location ~ ^{{ EDXAPP_MEDIA_URL }}/(?P<file>.*) {
   if ($do_redirect = "true") {
     rewrite ^ https://$host$request_uri? permanent;
   }
+ {% endif %}
 }

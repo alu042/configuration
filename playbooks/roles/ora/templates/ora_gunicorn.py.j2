@@ -10,4 +10,9 @@ bind = "{{ ora_gunicorn_host }}:{{ ora_gunicorn_port }}"
 pythonpath = "{{ ora_code_dir }}"
 workers = {{ ora_gunicorn_workers }}
 
+{{ common_close_all_caches }}
+
+def post_fork(server, worker):
+    close_all_caches()
+
 {{ ORA_GUNICORN_EXTRA_CONF }}
