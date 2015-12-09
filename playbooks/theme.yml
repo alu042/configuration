@@ -1,0 +1,23 @@
+- name: Update Theme
+  hosts: all
+  sudo: True
+  gather_facts: True
+  vars:
+    # Port 80 because we are standalone
+    # EDXAPP_LMS_NGINX_PORT: '80'
+
+    # Default to cypress
+    # edx_platform_version: 'release'
+
+    # Theming
+    edxapp_use_custom_theme: true
+    edxapp_theme_name: "ionisx"
+    edxapp_theme_source_repo: 'https://github.com/alu042/ionisx.git'
+    edxapp_theme_version: 'master'
+
+    # YOUR VARIABLES GO HERE
+    # CONFIGURATION_VARIABLE_HERE: 'value'
+    # ...
+
+  roles:
+    - edxapp
