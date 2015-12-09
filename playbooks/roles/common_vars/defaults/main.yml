@@ -88,23 +88,15 @@ COMMON_TAG_EC2_INSTANCE: False
 common_boto_version: '2.34.0'
 common_debian_pkgs:
   - ntp
-  - ack-grep
   - lynx-cur
   - logrotate
-  - mosh
   - rsyslog
-  - screen
-  - tmux
-  - tree
   - git
   - unzip
-  - "python2.7=2.7.10-0+precise1"
+  - "python2.7=2.7.10-0+{{ ansible_distribution_release }}1"
   - python-pip
   - python2.7-dev
-  # Not installed by default on vagrant ubuntu
-  # boxes
-  - curl
-
+  
 common_pip_pkgs:
   - pip==7.1.2
   - setuptools==18.3.2
@@ -162,3 +154,12 @@ common_close_all_caches: |
             cache = get_cache(cache_name)
             if hasattr(cache, 'close'):
                 cache.close()
+
+        # The 1.4 global default cache object needs to be closed also: 1.4
+        # doesn't ensure you get the same object when requesting the same
+        # cache. The global default is a separate Python object from the cache
+        # you get with get_cache("default"), so it will have its own connection
+        # that needs to be closed.
+        cache = django_cache.cache
+        if hasattr(cache, 'close'):
+            cache.close()
